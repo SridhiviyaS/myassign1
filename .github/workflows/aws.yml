@@ -1,0 +1,37 @@
+name: Python API app
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  ecr_repository_url: 206025053449.dkr.ecr.us-east-1.amazonaws.com/gist-api
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    
+    - uses: actions/checkout@v5
+    - name: Set up awscli 
+      uses: actions/setup-awscli@v5
+
+    - uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Build the Docker image
+      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+
+    - name: push to ecr registry
+      run: |
+           aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REGISTRY
+           docker tag gist-api:latest $ECR_REPO:latest
+           docker push $ECR_REPO:latest
