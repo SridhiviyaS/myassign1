@@ -14,26 +14,39 @@ kubectl wait --for=condition=available --timeout=300s deployment/gist-api -n gis
 echo "Checking pod status..."
 kubectl get pods -n gist-api-$ENV
 
+# Check pod logs
+echo "Checking pod logs..."
+kubectl logs -n gist-api-$ENV deployment/gist-api --tail=10
+
 # Check service
 echo "Checking service..."
 kubectl get svc -n gist-api-$ENV
 
-# Test endpoint
-echo "Testing API endpoint..."
+# Get pod name
+POD_NAME=$(kubectl get pod -n gist-api-$ENV -l app=gist-api -o jsonpath='{.items[0].metadata.name}')
+echo "Testing API from within the pod: $POD_NAME"
+
+# Test endpoint from within the pod itself (localhost)
+echo "Testing API on localhost from within pod..."
+if kubectl exec -n gist-api-$ENV $POD_NAME -- curl -f --max-time 5 http://localhost:8080/octocat; then
+  echo ""
+  echo "✓ Pod is responding on localhost"
+else
+  echo "✗ Pod not responding on localhost"
+  exit 1
+fi
+
+# Test via service from within another pod
+echo ""
+echo "Testing API via service from within cluster..."
 SERVICE_IP=$(kubectl get svc gist-api-service -n gist-api-$ENV -o jsonpath='{.spec.clusterIP}')
 echo "Service IP: $SERVICE_IP"
 
-# Try to curl the endpoint with timeout and retries
-for i in {1..5}; do
-  echo "Attempt $i to connect to API..."
-  if curl -f --max-time 10 http://$SERVICE_IP:8080/octocat; then
-    echo ""
-    echo "✓ Validation complete - API is responding"
-    exit 0
-  fi
-  echo "Retrying in 5 seconds..."
-  sleep 5
-done
-
-echo "✗ Validation failed - API not responding after 5 attempts"
-exit 1
+if kubectl exec -n gist-api-$ENV $POD_NAME -- curl -f --max-time 5 http://gist-api-service:8080/octocat; then
+  echo ""
+  echo "✓ Validation complete - API is responding via service"
+  exit 0
+else
+  echo "✗ Service not responding"
+  exit 1
+fi
