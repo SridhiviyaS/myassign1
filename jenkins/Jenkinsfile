@@ -1,0 +1,79 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_REGION = 'us-east-1'
+        EKS_CLUSTER_NAME = 'gist-api-eks'  
+    }
+
+    stages {
+        stage('Setup') {
+            steps {
+                script {
+                    echo "Configuring kubectl for EKS cluster..."
+                    sh """
+                        aws eks update-kubeconfig \
+                            --region ${AWS_REGION} \
+                            --name ${EKS_CLUSTER_NAME}
+                    """
+
+                    echo "Verifying kubectl connection..."
+                    sh "kubectl get nodes"
+                }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/SridhiviyaS/myassign.git'
+            }
+        }
+        stage('Test') {
+            steps {
+                sh 'pip3 install -r app/requirements.txt'
+                sh 'python3 -m pytest'
+            }
+        }
+        stage('Build') {
+            steps {
+                sh '''
+                    cd terraform
+                    terraform init
+                    cd ..
+                '''
+                sh 'chmod +x scripts/build.sh'
+                sh './scripts/build.sh'
+            }
+        }
+        stage('Deploy Dev') {
+            steps {
+                sh 'chmod +x scripts/deploy.sh'
+                sh './scripts/deploy.sh dev'
+            }
+        }
+        stage('Validate Dev') {
+            steps {
+                sh 'chmod +x scripts/validate.sh'
+                sh './scripts/validate.sh dev'
+            }
+        }
+        stage('Deploy Prod') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh './scripts/deploy.sh prod'
+                sh './scripts/validate.sh prod'
+            }
+        }
+    }
+
+    post {
+        failure {
+            echo 'Pipeline failed! Check logs for details.'
+        }
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+    }
+}
