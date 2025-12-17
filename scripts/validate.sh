@@ -26,9 +26,9 @@ kubectl get svc -n gist-api-$ENV
 POD_NAME=$(kubectl get pod -n gist-api-$ENV -l app=gist-api -o jsonpath='{.items[0].metadata.name}')
 echo "Testing API from within the pod: $POD_NAME"
 
-# Test endpoint from within the pod itself (localhost)
+# Test endpoint from within the pod using Python (which is installed)
 echo "Testing API on localhost from within pod..."
-if kubectl exec -n gist-api-$ENV $POD_NAME -- curl -f --max-time 5 http://localhost:8080/octocat; then
+if kubectl exec -n gist-api-$ENV $POD_NAME -- python3 -c "import requests; r=requests.get('http://localhost:8080/octocat'); print(r.text); exit(0 if r.status_code==200 else 1)"; then
   echo ""
   echo "✓ Pod is responding on localhost"
 else
@@ -36,13 +36,13 @@ else
   exit 1
 fi
 
-# Test via service from within another pod
+# Test via service from within the cluster
 echo ""
 echo "Testing API via service from within cluster..."
-SERVICE_IP=$(kubectl get svc gist-api-service -n gist-api-$ENV -o jsonpath='{.spec.clusterIP}')
-echo "Service IP: $SERVICE_IP"
+SERVICE_NAME="gist-api-service"
+echo "Service: $SERVICE_NAME"
 
-if kubectl exec -n gist-api-$ENV $POD_NAME -- curl -f --max-time 5 http://gist-api-service:8080/octocat; then
+if kubectl exec -n gist-api-$ENV $POD_NAME -- python3 -c "import requests; r=requests.get('http://$SERVICE_NAME:8080/octocat'); print(r.text); exit(0 if r.status_code==200 else 1)"; then
   echo ""
   echo "✓ Validation complete - API is responding via service"
   exit 0
