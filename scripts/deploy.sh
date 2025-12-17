@@ -7,11 +7,12 @@ if [ -z "$ENV" ]; then
   exit 1
 fi
 
-# Update Kustomization with ECR URL
-ECR_REPO=$(terraform output -raw ecr_repository_url)
-sed -i "s|<ECR_REPO_URL>|$ECR_REPO|g" k8s/base/kustomization.yaml
+echo "Deploying to $ENV environment..."
 
 # Deploy using Kustomize
 kubectl apply -k k8s/overlays/$ENV
 
-echo "Deployed to $ENV environment"
+echo "Successfully deployed to $ENV environment"
+
+# Show deployment status
+kubectl get pods -n gist-api-$ENV
